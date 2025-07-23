@@ -2,7 +2,6 @@ plugins {
 	id 'java'
 	id 'fabric-loom' version "${loom_version}"
 	id 'maven-publish'
-	id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 version = project.mod_version
@@ -32,6 +31,7 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	//Hypixel API transport
 	implementation 'net.hypixel:hypixel-api-transport-reactor:4.4'
+	include 'net.hypixel:hypixel-api-transport-reactor:4.4'
 }
 
 processResources {
@@ -63,13 +63,7 @@ jar {
 		rename { "${it}_${inputs.properties.archivesName}"}
 	}
 }
-tasks.shadowJar {
-	mergeServiceFiles()
-	setProperty("zip64", true)
-	dependencies {
-		include(dependency('net.hypixel:hypixel-api-transport-reactor'))
-	}
-}
+
 // configure the maven publication
 publishing {
 	publications {
