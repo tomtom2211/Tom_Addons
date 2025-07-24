@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'fabric-loom' version "${loom_version}"
 	id 'maven-publish'
+	id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 version = project.mod_version
@@ -13,34 +14,45 @@ base {
 
 repositories {
 	maven { url 'https://repo.hypixel.net/repository/Hypixel/' }
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+	mavenCentral()
+	// Add any other needed repositories here
+}
+
+// Custom configuration for Shadow
+configurations {
+	shadowRuntime {
+		canBeResolved = true
+		canBeConsumed = false
+		extendsFrom implementation
+	}
 }
 
 dependencies {
-	// To change the versions see the gradle.properties file
+	// Fabric dependencies
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-	//Hypixel API transport
+
+	// Your mod dependencies (will be bundled by Shadow)
 	implementation 'net.hypixel:hypixel-api-transport-reactor:4.4'
+	implementation 'net.hypixel:hypixel-api-core:4.4'
 	implementation 'com.google.code.gson:gson:2.13.1'
 	implementation 'io.projectreactor:reactor-core:3.8.0-M5'
-	implementation 'io.projectreactor.netty:reactor-netty-core:1.3.0-M5'
-	implementation 'io.projectreactor.netty:reactor-netty-http:1.3.0-M5'
-	implementation 'net.hypixel:hypixel-api-core:4.4'
-	include 'net.hypixel:hypixel-api-transport-reactor:4.4'
-	include 'com.google.code.gson:gson:2.13.1'
-	include 'io.projectreactor:reactor-core:3.8.0-M5'
-	include 'io.projectreactor.netty:reactor-netty-core:1.3.0-M5'
-	include 'io.projectreactor.netty:reactor-netty-http:1.3.0-M5'
-	include 'net.hypixel:hypixel-api-core:4.4'
+	implementation "io.projectreactor.netty:reactor-netty-core:1.3.0-M5"
+	implementation "io.projectreactor.netty:reactor-netty-http:1.3.0-M5"
+
+	// All Netty modules at the same version (required for shading)
+	implementation "io.netty:netty-buffer:4.1.104.Final"
+	implementation "io.netty:netty-codec:4.1.104.Final"
+	implementation "io.netty:netty-codec-http:4.1.104.Final"
+	implementation "io.netty:netty-handler:4.1.104.Final"
+	implementation "io.netty:netty-resolver:4.1.104.Final"
+	implementation "io.netty:netty-resolver-dns:4.1.104.Final"
+	implementation "io.netty:netty-transport:4.1.104.Final"
+	implementation "io.netty:netty-common:4.1.104.Final"
+	implementation "org.reactivestreams:reactive-streams:1.0.4"
+	// You can remove native-epoll/kqueue if you want to further reduce size
 }
 
 processResources {
@@ -56,11 +68,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
 	withSourcesJar()
-
 	sourceCompatibility = JavaVersion.VERSION_21
 	targetCompatibility = JavaVersion.VERSION_21
 }
@@ -69,11 +77,42 @@ jar {
 	inputs.property "archivesName", project.base.archivesName
 
 	from("LICENSE") {
-		rename { "${it}_${inputs.properties.archivesName}"}
+		rename { "${it}_${inputs.properties.archivesName}" }
 	}
 }
 
-// configure the maven publication
+// ShadowJar task: bundle dependencies, exclude unnecessary stuff, optionally relocate Netty to avoid conflicts
+shadowJar {
+	archiveClassifier.set('dev')
+	configurations = [project.configurations.shadowRuntime]
+
+	// Exclude unnecessary files
+	exclude 'META-INF/*.SF'
+	exclude 'META-INF/*.DSA'
+	exclude 'META-INF/*.RSA'
+	exclude 'META-INF/native-image/**'
+	exclude 'META-INF/licenses/**'
+	exclude '**/Test*'
+	exclude '**/*.md'
+	exclude 'io/netty/channel/epoll/**'
+	exclude 'io/netty/channel/kqueue/**'
+	exclude 'reactor/test/**'
+	exclude 'org/slf4j/**'
+	exclude 'org/apache/logging/**'
+
+	// (Optional) Relocate Netty to avoid conflicts with Minecraft's Netty
+	relocate 'io.netty', 'tomsaddons.shaded.io.netty'
+	relocate 'org.reactivestreams', 'tomsaddons.shaded.org.reactivestreams'
+	relocate 'reactor.core', 'tomsaddons.shaded.reactor.core'
+	relocate 'reactor.netty', 'tomsaddons.shaded.reactor.netty'
+}
+
+remapJar {
+	dependsOn shadowJar
+	inputFile.set(shadowJar.archiveFile)
+	archiveClassifier.set('')
+}
+
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {
@@ -81,12 +120,7 @@ publishing {
 			from components.java
 		}
 	}
-
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
 	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
+		// Add your maven publish repo here
 	}
 }
