@@ -10,10 +10,9 @@ public class TomsAddons implements ModInitializer {
 	// It is considered best practice to use your mod id as the logger's name.
 	// That way, it's clear which mod wrote info, warnings, and errors.
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-	static APIUtils apiUtils = new APIUtils();
-	public static final String API_KEY = apiUtils.apikey;
+
 	@Override
 	public void onInitialize() {
-		LOGGER.info("Tom's addons launched!");
+		LOGGER.info("Tom's addons successfully launched!");
 	}
 }
